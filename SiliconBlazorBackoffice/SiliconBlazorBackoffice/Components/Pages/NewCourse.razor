@@ -45,7 +45,7 @@
 
             <div class="col">
                 <h3>Program details list</h3>
-            
+                <button @onclick:preventDefault="true" @onclick="AddProgramDetail" class="btn-theme mb-2">Add Program Detail</button>
 
                 @foreach (var program in courseDetails.Content.ProgramDetails)
                 {
@@ -65,9 +65,8 @@
             </div>
         </div>
         <span>
-            <button type="submit">Create</button>
-            <button @onclick:preventDefault="true" @onclick="() => Cancel()">Cancel</button>
-            <button @onclick:preventDefault="true" @onclick="AddProgramDetail">Add Program Detail</button>
+            <button type="submit" class="btn-theme-s mb-3">Create</button>
+            <button @onclick:preventDefault="true" @onclick="() => Cancel()" class="btn-gray">Cancel</button>
         </span>
 
     </EditForm>

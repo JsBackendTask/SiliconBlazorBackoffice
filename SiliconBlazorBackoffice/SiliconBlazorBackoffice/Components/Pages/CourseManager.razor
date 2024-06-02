@@ -11,7 +11,7 @@ else
 {
     <div class="row">
 
-        <button @onclick="() => NavigateToNew()">Create New Course</button>
+        <button @onclick="() => NavigateToNew()" class="btn-theme-s text-xl">Create New Course</button>
 
         @foreach (var course in courses)
         {
@@ -19,8 +19,8 @@ else
                 <h3>@course.Title</h3>
                 <p>@course.Id</p>
                 <span>
-                    <button @onclick="() => MovetoEdit(course.Id)">Edit</button>
-                    <button @onclick="() => DeleteCourse(course.Id)">Delete</button>
+                    <button @onclick="() => MovetoEdit(course.Id)" class="btn-theme d-inline-block mr-3">Edit</button>
+                    <button @onclick="() => DeleteCourse(course.Id)" class="btn btn-danger d-inline-block ">Delete</button>
                 </span>
             </div>
         }

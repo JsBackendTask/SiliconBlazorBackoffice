@@ -4,7 +4,8 @@
 @using System.Globalization
 
 <PageTitle>Course Manager</PageTitle>
-
+@if (courseDetails != null)
+{
     <h3>Details for @courseDetails.Title</h3>
 
     <p class="error-styling">@Message</p>
@@ -39,7 +40,7 @@
                 </div>
                 <div class="input-group mb-2">
                     <label for="ContentDescription">Content in HTML</label>
-                    <InputTextArea @bind-Value="courseDetails.Content.Description" style="width: 1000px; height: 300px;"/>
+                    <InputTextArea @bind-Value="courseDetails.Content.Description" style="width: 1000px; height: 300px;" />
                 </div>
             </div>
 
@@ -63,11 +64,17 @@
             </div>
         </div>
         <span>
-            <button @onclick:preventDefault="true" @onclick="() => Cancel()">Cancel</button>
-            <button type="submit">Update</button>
+            <button type="submit" class="btn-theme  mb-3">Update</button>
+            <button @onclick:preventDefault="true" @onclick="() => Cancel()" class="btn-gray">Cancel</button>
         </span>
 
     </EditForm>
+}
+else
+{
+    <p>Loading...</p>
+}
+
     
 
 @code {
