@@ -17,7 +17,6 @@
     }
     else
     {
-        <button>Create New Course</button>
         @foreach (var user in users)
         {
             var addressModel = addressModels[user.Id];
@@ -78,10 +77,10 @@
 
                 <p> Roles: @string.Join(", ", userRoles[user.Id])</p>
                 <span>
-                    <button @onclick="() => PromoteUserAsync(user.Id)">Promote</button>
-                    <button @onclick="() => DemoteUserAsync(user.Id)">Demote</button>
-                    <button @onclick="() => DeleteUserAsync(user.Id)">Delete</button>
-                    <button @onclick="async (e) => await HandleSubscriptionChange(user.Email!, !user.IsSubscribedToNewsletter)">
+                    <button @onclick="() => PromoteUserAsync(user.Id)" class="btn btn-success d-inline-block">Promote</button>
+                    <button @onclick="() => DemoteUserAsync(user.Id)" class="btn btn-warning d-inline-block">Demote</button>
+                    <button @onclick="() => DeleteUserAsync(user.Id)" class="btn btn-danger d-inline-block">Delete</button>
+                    <button @onclick="async (e) => await HandleSubscriptionChange(user.Email!, !user.IsSubscribedToNewsletter)" class="btn btn-gray d-inline-block">
                         @if (user.IsSubscribedToNewsletter)
                         {
                             <span> Newsletter Unsubscribe</span>
@@ -91,7 +90,7 @@
                             <span>Newsletter Subscribe</span>
                         }
                     </button>
-                    <button type="submit">Update</button>
+                    <button type="submit" class="btn btn-theme d-inline-block">Update</button>
                 </span>
 
             </EditForm>
@@ -268,6 +267,8 @@
             if (result.Succeeded)
             {
                 Message = "User demoted from admin";
+                userRoles[userId].Remove("Admin");
+                StateHasChanged();
             }
             else
             {
@@ -292,6 +293,8 @@
             if (result.Succeeded)
             {
                 Message = "User promoted to admin";
+                userRoles[userId].Add("Admin");
+                StateHasChanged();
             }
             else
             {
