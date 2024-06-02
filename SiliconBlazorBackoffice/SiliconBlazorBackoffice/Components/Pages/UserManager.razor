@@ -1,0 +1,397 @@
+﻿@page "/admin/usermanager"
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore
+
+
+<PageTitle>Usermanager</PageTitle>
+
+<h1>Usermanager</h1>
+
+<p class="success-styling">@Message</p>
+
+<AuthorizeView Roles="Admin">
+    @if (isLoading)
+    {
+        <p>Loading...</p>
+    }
+    else
+    {
+        <button>Create New Course</button>
+        @foreach (var user in users)
+        {
+            var addressModel = addressModels[user.Id];
+            <EditForm Model="userModel" OnValidSubmit="() => UpdateUserAsync(user.Id)" Context="Usercontext" class="user-form">
+                <div class="row">
+                    <div class="col">
+                        <div class="input-group mb-2">
+                            <label for="FirstName">First Name</label>
+                            <InputText @bind-Value="user.FirstName" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="LastName">Last Name</label>
+                            <InputText @bind-Value="user.LastName" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="Email">Email</label>
+                            <InputText @bind-Value="user.Email" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="PhoneNumber">Phone Number</label>
+                            <InputText @bind-Value="user.PhoneNumber" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="Bio">Bio</label>
+                            <InputText @bind-Value="user.Bio" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="ProfileImage">Profile Image</label>
+                            <InputFile @bind-Value="user.ProfileImage" />
+                        </div>
+                    </div>
+
+                    <div class="col">
+                        <div class="input-group mb-2">
+                            <label for="AddressLine_1">Address Line 1</label>
+                            <InputText @bind-Value="addressModel.AddressLine_1" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="AddressLine_2">Address Line 2</label>
+                            <InputText @bind-Value="addressModel.AddressLine_2" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="PostalCode">Postal Code</label>
+                            <InputText @bind-Value="addressModel.PostalCode" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="PostalCode">City</label>
+                            <InputText @bind-Value="addressModel.City" />
+                        </div>
+                        <div class="input-group mb-2">
+                            <label for="Subscribed">Subscribed to newsletter?</label>
+                            <InputCheckbox @bind-Value="user.IsSubscribedToNewsletter"/>
+                        </div>
+                    </div>
+                </div>               
+                
+
+
+                <p> Roles: @string.Join(", ", userRoles[user.Id])</p>
+                <span>
+                    <button @onclick="() => PromoteUserAsync(user.Id)">Promote</button>
+                    <button @onclick="() => DemoteUserAsync(user.Id)">Demote</button>
+                    <button @onclick="() => DeleteUserAsync(user.Id)">Delete</button>
+                    <button @onclick="async (e) => await HandleSubscriptionChange(user.Email!, !user.IsSubscribedToNewsletter)">
+                        @if (user.IsSubscribedToNewsletter)
+                        {
+                            <span> Newsletter Unsubscribe</span>
+                        }
+                        else
+                        {
+                            <span>Newsletter Subscribe</span>
+                        }
+                    </button>
+                    <button type="submit">Update</button>
+                </span>
+
+            </EditForm>
+            <br />
+            <br />
+        }
+    }
+</AuthorizeView>
+
+@code {
+    private IEnumerable<ApplicationUser> users;
+    private InputModel userModel = new InputModel();
+    private Dictionary<string, IList<string>> userRoles = new Dictionary<string, IList<string>>();
+    private Dictionary<string, AddressInfoModel> addressModels = new Dictionary<string, AddressInfoModel>();
+    private string Message = string.Empty;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Message = string.Empty;
+            users = await UserManagers.Users.Include(u => u.Address).ToArrayAsync();
+            foreach (var user in users)
+            {
+                userRoles[user.Id] = (await UserManagers.GetRolesAsync(user)).ToList();
+                addressModels[user.Id] = new AddressInfoModel();
+                if (user.Address != null)
+                {
+                    {
+                        addressModels[user.Id].AddressLine_1 = user.Address.AddressLine_1;
+                        addressModels[user.Id].AddressLine_2 = user.Address.AddressLine_2;
+                        addressModels[user.Id].PostalCode = user.Address.PostalCode;
+                        addressModels[user.Id].City = user.Address.City;
+                    };
+
+                }
+
+                var isSubscribed = await Http.PostAsJsonAsync("https://newsletterprovider-silicon-bnar.azurewebsites.net/api/SubscriptionStatus?code=IyByeI2sivj6CZz7-tBcBK4mD4zIyyUP76oq558DOGE1AzFuomQG_Q%3D%3D", new { Email = user.Email });
+                if (isSubscribed.IsSuccessStatusCode)
+                {
+                    var subStatus = await isSubscribed.Content.ReadFromJsonAsync<SubStatusResponse>();
+
+                    if (subStatus.Message == "Subscribed")
+                        user.IsSubscribedToNewsletter = true;
+                    else
+                        user.IsSubscribedToNewsletter = false;
+                }
+                else
+                {
+                    Message = "Failed to retrieve status of newsletter subscription";
+                }
+            }
+
+
+        }
+        catch (Exception ex)
+        {
+            Message = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+
+    }
+
+    public class SubStatusResponse
+    {
+        public string Message { get; set; } = null!;
+    }
+
+
+
+    private async Task UpdateUserAsync(string userId)
+    {
+        try
+        {
+            var user = await UserManagers.FindByIdAsync(userId);
+            var addressModel = addressModels[userId];
+
+            user.FirstName = user.FirstName;
+            user.LastName = user.LastName;
+            user.Email = user.Email;
+            user.PhoneNumber = user.PhoneNumber;
+            user.Bio = user.Bio;
+
+            if (user.Address != null)
+            {
+                user.Address.AddressLine_1 = addressModel.AddressLine_1;
+                user.Address.AddressLine_2 = addressModel.AddressLine_2;
+                user.Address.PostalCode = addressModel.PostalCode;
+                user.Address.City = addressModel.City;
+            }
+
+            var result = await UserManagers.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                Message = "User updated";
+            }
+            else
+            {
+                Message = "Failed to update user";
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSubscriptionChange(string email, bool isSubscribed)
+    {
+        if (isSubscribed)
+        {
+            var result = await SubscribeAsync(email);
+            if (result.IsSuccessStatusCode)
+            {
+                var user = await UserManagers.FindByEmailAsync(email);
+                if (user != null)
+                {
+                    user.IsSubscribedToNewsletter = true;
+                }
+            }
+        }
+        else
+        {
+            var result = await UnsubscribeAsync(email);
+            if (result.IsSuccessStatusCode)
+            {
+                var user = await UserManagers.FindByEmailAsync(email);
+                if (user != null)
+                {
+                    user.IsSubscribedToNewsletter = false;
+                }
+            }
+        }
+    }
+
+    public async Task<HttpResponseMessage> SubscribeAsync(string email) 
+    {
+        var result = await Http.PostAsJsonAsync("https://newsletterprovider-silicon-bnar.azurewebsites.net/api/Subscribe?code=A40Vk1ZN2DdskiNaUvlUecTIophMwQd_Tv5yGj6bc91tAzFuhJEPxw%3D%3D", new { Email = email });
+        if (result.IsSuccessStatusCode)
+            Message = "User has been subscribed!";
+        else
+            Message = "Something went wrong with subscribing!";
+
+        StateHasChanged();
+        return result;
+    }
+
+    public async Task<HttpResponseMessage> UnsubscribeAsync(string email)
+    {
+        var result = await Http.PostAsJsonAsync("https://newsletterprovider-silicon-bnar.azurewebsites.net/api/Unsubscribe?code=jt8X-9EKOYLDibQ5IjRcR1YiNubyPIWf_-1nP3xIjy8rAzFuWSMrDw%3D%3D", new { Email = email });
+        if (result.IsSuccessStatusCode)
+            Message = "User has been unsubscribed!";
+        else
+            Message = "Something went wrong with unsubscribing!";
+
+        StateHasChanged();
+        return result;
+    }
+
+    private async Task DemoteUserAsync(string userId)
+    {
+        try
+        {
+            var user = await UserManagers.FindByIdAsync(userId);
+            var result = await UserManagers.RemoveFromRoleAsync(user!, "Admin");
+            if (result.Succeeded)
+            {
+                Message = "User demoted from admin";
+            }
+            else
+            {
+                Message = "Failed to demote user";
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }        
+    }
+
+    private async Task PromoteUserAsync(string userId)
+    {
+        try
+        {        var user = await UserManagers.FindByIdAsync(userId);
+            var result = await UserManagers.AddToRoleAsync(user, "Admin");
+            if (result.Succeeded)
+            {
+                Message = "User promoted to admin";
+            }
+            else
+            {
+                Message = "Failed to promote user";
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+
+    }
+
+    private async Task DeleteUserAsync(string userId)
+    {
+        try
+        {
+            var user = await UserManagers.FindByIdAsync(userId);
+            var result = await UserManagers.DeleteAsync(user);
+            if (result.Succeeded)
+            {
+                Message = "User deleted";
+            }
+            else
+            {
+                Message = "Failed to delete user";
+            }
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task<AddressEntity> GetAddressById(string addressId)
+    {
+        try
+        {
+            return await DbContext.Addresses.FindAsync(addressId);
+        }
+        catch (Exception ex)
+        {
+            Message = $"Error: {ex.Message}";
+            return null;
+        }
+
+    }
+
+
+
+    public class InputModel
+    {
+        [Required]
+        [Display(Name = "First Name")]
+        public string? FirstName { get; set; }
+
+        [Required]
+        [Display(Name = "Last Name")]
+        public string? LastName { get; set; }
+
+        [Required]
+        [EmailAddress]
+        public string? Email { get; set; }
+
+        [Display(Name = "Phone number")]
+        public string? PhoneNumber { get; set; }
+
+        [Display(Name = "Bio")]
+        public string? Bio { get; set; }
+
+        [Display(Name = "Profile Image")]
+        public IFormFile? ProfileImage { get; set; }
+
+        [Display(Name = "Subscribed")]
+        public bool Subscribed { get; set; }
+    }
+
+    public class AddressInfoModel
+    {
+        [Required]
+        [Display(Name = "Address Line 1")]
+        public string AddressLine_1 { get; set; } = null!;
+
+        [Display(Name = "Address Line 2")]
+        public string? AddressLine_2 { get; set; }
+
+        [Required]
+        [Display(Name = "Postal Code")]
+        public string PostalCode { get; set; } = null!;
+
+        [Required]
+        [Display(Name = "City")]
+        public string City { get; set; } = null!;
+    }
+}

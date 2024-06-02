@@ -1,0 +1,227 @@
+﻿@page "/admin/coursemanager/details/{id}"
+@rendermode InteractiveServer
+@using Infrastructure.Models
+@using System.Globalization
+
+<PageTitle>Course Manager</PageTitle>
+
+    <h3>Details for @courseDetails.Title</h3>
+
+    <p class="error-styling">@Message</p>
+
+    <EditForm Model="courseDetails" OnValidSubmit="UpdateCourseAsync" FormName="CourseEditForm" class="user-form">
+        <div class="row">
+            <div class="col">
+                <h3>General info and content </h3>
+                <div class="input-group mb-2">
+                    <label for="Title">Title</label>
+                    <InputText @bind-Value="courseDetails.Title" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="Ingress">Ingress</label>
+                    <InputText @bind-Value="courseDetails.Ingress" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="Author">Author</label>
+                    <InputText @bind-Value="FirstAuthorName" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="CurrentPrice">Current Price</label>
+                    <InputNumber @bind-Value="courseDetails.Prices.CurrentPrice" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="DiscountPrice">Discount Price</label>
+                    <InputNumber @bind-Value="courseDetails.Prices.DiscountPrice" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="Hours">Hours</label>
+                    <InputText @bind-Value="courseDetails.Hours" />
+                </div>
+                <div class="input-group mb-2">
+                    <label for="ContentDescription">Content in HTML</label>
+                    <InputTextArea @bind-Value="courseDetails.Content.Description" style="width: 1000px; height: 300px;"/>
+                </div>
+            </div>
+
+            <div class="col">
+                <h3>Program details list</h3>
+                @foreach (var program in courseDetails.Content.ProgramDetails)
+                {
+                    <div class="input-group mb-2">
+                        <label for="ProgramTitle">Program Title @program.Id</label>
+                        <InputText @bind-Value="program.Title" />
+                    </div>
+                    <div class="input-group mb-2">
+                        <label for="ProgramDescription">Program Description</label>
+                        <InputText @bind-Value="program.Description" />
+                    </div>
+                }
+                <div class="input-group mb-2">
+                    <label for="IsBestseller">Is Bestseller?</label>
+                    <InputCheckbox @bind-Value="courseDetails.IsBestSeller" />
+                </div>
+            </div>
+        </div>
+        <span>
+            <button @onclick:preventDefault="true" @onclick="() => Cancel()">Cancel</button>
+            <button type="submit">Update</button>
+        </span>
+
+    </EditForm>
+    
+
+@code {
+    private Course? courseDetails;
+    [Parameter]
+    public string? Id { get; set; }
+
+    private string? Message { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = new GraphQLQuery
+            {
+                Query = $"{{getCourseById(id:\"{Id}\") {{ id isBestSeller isDigital categories title ingress hours authors {{ name }} prices {{ currentPrice discountPrice }} content {{ description programDetails {{id title description}}}}}}}}"
+            };
+
+        var response = await Http.PostAsJsonAsync("https://coursesprovider-silicon-bnar.azurewebsites.net/api/graphql?code=3rOEfiwSz9VcWDjwXQUbtxAhmkAiu57NCWM-bZXR5qGGAzFuLqkrQA%3D%3D", query);
+
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<DynamicGraphQLResponse>();
+            var courses = result?.Data.GetProperty("getCourseById");
+
+            if (courses.HasValue)
+            {
+                var course = courses.Value;
+                courseDetails = new Course
+                    {
+                        Id = course.GetProperty("id").GetString(),
+                        IsBestSeller = course.GetProperty("isBestSeller").GetBoolean(),
+                        Title = course.GetProperty("title").GetString(),
+                        Ingress = course.GetProperty("ingress").GetString(),
+                        Hours = course.GetProperty("hours").ToString(),
+                        Authors = new List<Author> { new Author { Name = course.GetProperty("authors").EnumerateArray().Select(author => author.GetProperty("name").GetString()).FirstOrDefault() } },
+                        Prices = new Prices
+                        {
+                            CurrentPrice = course.GetProperty("prices").GetProperty("currentPrice").GetDecimal(),
+                            DiscountPrice = course.GetProperty("prices").GetProperty("discountPrice").GetDecimal()
+                        },
+                        Content = new Content
+                        {
+                            Description = course.GetProperty("content").GetProperty("description").GetString(),
+                            ProgramDetails = course.GetProperty("content").GetProperty("programDetails").EnumerateArray().Select(program => new ProgramDetailItem
+                            {
+                                Id = int.Parse(program.GetProperty("id").GetInt32().ToString()),
+                                Title = program.GetProperty("title").GetString(),
+                                Description = program.GetProperty("description").GetString()
+                            }).ToList()
+                        }
+                    };
+            }
+        }
+    }
+
+    private string FirstAuthorName
+    {
+        get => courseDetails.Authors.FirstOrDefault()?.Name;
+        set
+        {
+            var author = courseDetails.Authors.FirstOrDefault();
+            if (author != null)
+            {
+                author.Name = value;
+            }
+        }
+    }
+
+    private string FirstProgramDetailTitle
+    {
+        get => courseDetails.Content.ProgramDetails.FirstOrDefault()?.Title;
+        set
+        {
+            var programDetail = courseDetails.Content.ProgramDetails.FirstOrDefault();
+            if (programDetail != null)
+            {
+                programDetail.Title = value;
+            }
+        }
+    }
+
+    private string FirstProgramDetailDescription
+    {
+        get => courseDetails.Content.ProgramDetails.FirstOrDefault()?.Description;
+        set
+        {
+            var programDetail = courseDetails.Content.ProgramDetails.FirstOrDefault();
+            if (programDetail != null)
+            {
+                programDetail.Description = value;
+            }
+        }
+    }
+
+    private async Task UpdateCourseAsync()
+    {
+        var programDetailsMutations = courseDetails.Content.ProgramDetails.Select(pd => $"{{ id: {pd.Id}, title: \"{pd.Title}\", description: \"{pd.Description}\" }}");
+        var programDetailsMutationString = string.Join(", ", programDetailsMutations);
+
+        var query = new GraphQLQuery
+            {
+                Query = $@"mutation UpdateCourse {{
+    updateCourse(input: {{
+        id: ""{courseDetails.Id}"",
+        isBestSeller: {courseDetails.IsBestSeller.ToString().ToLower()},
+        isDigital: false,
+        starRating: 0,
+        categories: null,
+        title: ""{courseDetails.Title}"",
+        ingress: ""{courseDetails.Ingress}"",
+        hours: ""{courseDetails.Hours}"",
+        authors: [{{
+            name: ""{courseDetails.Authors.FirstOrDefault().Name}""
+        }}],
+        prices: {{
+            currentPrice: {courseDetails.Prices.CurrentPrice.ToString(CultureInfo.InvariantCulture)},
+            discountPrice: {courseDetails.Prices.DiscountPrice.ToString(CultureInfo.InvariantCulture)}
+                }},
+        content: {{
+            description: ""{courseDetails.Content.Description}"",
+            programDetails: [{programDetailsMutationString}]
+            }}
+        }}) 
+
+        {{
+            id
+        }}
+    }}"
+    };
+
+        Console.WriteLine(query.Query);
+
+        var response = await Http.PostAsJsonAsync("https://coursesprovider-silicon-bnar.azurewebsites.net/api/graphql?code=3rOEfiwSz9VcWDjwXQUbtxAhmkAiu57NCWM-bZXR5qGGAzFuLqkrQA%3D%3D", query);
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        Console.WriteLine(responseContent);
+    if (response.IsSuccessStatusCode)
+    {
+        Message = "Update successful!";
+    }
+    else
+    {
+            Message = "Update failed";
+    }
+
+    StateHasChanged();
+}
+
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("/admin/coursemanager");
+    }
+}
+
+
+
+

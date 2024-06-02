@@ -1,0 +1,76 @@
+﻿@page "/admin/coursemanager"
+@rendermode InteractiveServer
+
+<h1>Course Manager</h1>
+
+@if (courses == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="row">
+
+        <button @onclick="() => NavigateToNew()">Create New Course</button>
+
+        @foreach (var course in courses)
+        {
+           <div class="">
+                <h3>@course.Title</h3>
+                <p>@course.Id</p>
+                <span>
+                    <button @onclick="() => MovetoEdit(course.Id)">Edit</button>
+                    <button @onclick="() => DeleteCourse(course.Id)">Delete</button>
+                </span>
+            </div>
+        }
+    </div>
+}
+
+
+
+@code {
+    private List<CourseCardModel>? courses;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = new GraphQLQuery { Query = "{getAllCourses {id title}}" };
+        var response = await Http.PostAsJsonAsync("https://coursesprovider-silicon-bnar.azurewebsites.net/api/graphql?code=3rOEfiwSz9VcWDjwXQUbtxAhmkAiu57NCWM-bZXR5qGGAzFuLqkrQA%3D%3D", query);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadFromJsonAsync<DynamicGraphQLResponse>();
+            courses = result?.Data.GetProperty("getAllCourses").EnumerateArray().Select(courses => new CourseCardModel
+                {
+                    Id = courses.GetProperty("id").GetString(),
+                    Title = courses.GetProperty("title").GetString()
+                }).ToList();
+
+        }
+    }
+
+    private async Task DeleteCourse(string id)
+    {
+        var query = new GraphQLQuery { Query = $"mutation {{deleteCourse(id: \"{id}\")}}" };
+        var response = await Http.PostAsJsonAsync("https://coursesprovider-silicon-bnar.azurewebsites.net/api/graphql?code=3rOEfiwSz9VcWDjwXQUbtxAhmkAiu57NCWM-bZXR5qGGAzFuLqkrQA%3D%3D", query);
+
+        if (response.IsSuccessStatusCode)
+        {
+            var result = await response.Content.ReadAsStringAsync();
+            if (result.Contains("true"))
+            {
+                courses = courses?.Where(c => c.Id != id).ToList();
+            }
+        }
+    }
+
+    private void MovetoEdit(string id)
+    {
+        NavigationManager.NavigateTo($"/admin/coursemanager/details/{id}");
+    }
+
+    private void NavigateToNew()
+    {
+        NavigationManager.NavigateTo($"/admin/coursemanager/new");
+    }
+}
